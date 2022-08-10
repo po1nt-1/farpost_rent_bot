@@ -1,2 +1,2 @@
 # farpost_rent_bot
-Парсинг нужных объявлений с Farpost с уведомлениями в Telegram
+Уведомления в Telegram о новых объявлениях на Farpost.ru
