@@ -35,9 +35,6 @@ def send_message(ads, config):
             'text': f'{message}'
         }
 
-        from pprint import pprint
-        pprint(message)
-
         response = post(
             url=f'https://api.telegram.org/bot{token}/sendMessage',
             data=payload
