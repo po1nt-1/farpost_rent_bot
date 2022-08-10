@@ -1,0 +1,26 @@
+scrape_interval: 60
+filters:
+  city: detroit
+  agentType:
+    # - agencyFee
+    # - agencyNoFee
+    - privatePerson
+  animalsAllowed: 0
+  areaTotal_min: 17
+  areaTotal_max: 999
+  district:
+    - первый район
+    - второй район
+    - третий район
+  flatType: [1, 2, 3, 4, 5, 6, gostinka]
+  floor_max: 999
+  floor_min: 2
+  price_max: 999999
+  price_min: 1000
+  rentPeriod:
+    # - 1
+    # - 3
+    - 12
+telegram:
+  token: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+  chat_id: -654321987

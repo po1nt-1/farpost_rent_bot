@@ -129,4 +129,6 @@ dmypy.json
 .pyre/
 
 # custom
-geckodriver
+driver_profile/
+chromedriver
+config.yaml
