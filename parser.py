@@ -1,5 +1,7 @@
+from base64 import b64encode
 from random import randint
 from time import sleep
+from urllib.parse import quote
 
 from phonenumbers import PhoneNumberFormat, PhoneNumberMatcher, format_number
 from selenium.common import exceptions
@@ -7,9 +9,13 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium_stealth import stealth
 
-from disk import init
+from disk import ad_exists, init
+
+EXPERIMENTAL_FLAG = True
 
 
 def sleep_time():
@@ -32,8 +38,63 @@ def url_builder(filters):
         "".join([f'rentPeriod[]={e}&' for e in filters.get('rentPeriod', [])])
 
 
+def parser_egrp(driver, ads):
+    for ad in ads:
+        street, house = ad['address'].replace('улица', '').split(maxsplit=1)
+        area = float(ad['area'].replace('\\', ''))
+        min_area, max_area = int(area) - 1, int(area) + 1
+        floor = ad['floor']
+
+        params = '{"form":{"number":"","name":"",' + \
+            f'"floor":"{ floor }","address":"",' + \
+            '"region":"25","district":"Владивосток",' + \
+            f'"place":"","street":"{ street }",' + \
+            f'"house":"{ house }","apartment":"",' + \
+            f'"min-area":"{ min_area }","max-area":"{ max_area }",' + \
+            '"meta_type":"3"},"tab":2}'
+
+        params = quote(params.encode('utf-8'))
+
+        params = b64encode(params.encode('utf8')).decode('utf8')
+
+        url = f'https://egrp365.org/extra/?data={params}'
+
+        driver.get(url)
+        flag = 0
+
+        try:
+            locator = (By.CSS_SELECTOR, '.table > tbody:nth-child(2)')
+            page = WebDriverWait(driver, 10).until(
+                ec.presence_of_element_located(locator))
+
+            page = page.find_elements(By.TAG_NAME, 'tr')
+            tmp = []
+            for line in page:
+                line = line.find_elements(By.TAG_NAME, 'td')[1].text
+                tmp.append(line)
+
+            ad['egrp'] = f"[{ len(tmp) } совпадений](https://httpbin.org/get?info={ ','.join(tmp) })"
+
+        except (exceptions.TimeoutException,
+                exceptions.NoSuchElementException):
+            try:
+                locator = (By.CSS_SELECTOR,
+                           '.alert-warning')
+                page = WebDriverWait(driver, 2).until(
+                    ec.presence_of_element_located(locator))
+                page = page.text
+
+                if 'Ничего не найдено' in page:
+                    ad['egrp'] = "нет совпадений"
+
+            except exceptions.TimeoutException:
+                pass
+
+    return ads
+
+
 def post_parser(driver, ads):
-    for i, ad in enumerate(ads):
+    for ad in ads:
         driver.get(ad['url'])
         sleep(sleep_time())
 
@@ -117,8 +178,6 @@ def post_parser(driver, ads):
         except exceptions.NoSuchElementException as e:
             print(e)
 
-        ads[i] = ad
-
     return ads
 
 
@@ -164,7 +223,8 @@ def parser(config):
                 "url": "", "address": "", "price": "",
                 "district": "", "type_": "", "area": "",
                 "phones": [], "floor": "", "second_price": "",
-                "date": "", "deposit": "", "photos": []
+                "date": "", "deposit": "", "photos": [],
+                "egrp": "error"
             }
 
             try:
@@ -178,6 +238,10 @@ def parser(config):
 
             except exceptions.NoSuchElementException as e:
                 print(e)
+
+            if ad_exists(ad['url']):
+                continue
+            print('.', end='')
 
             try:
                 address = raw_ad.find_element(
@@ -236,9 +300,13 @@ def parser(config):
                 print(e)
 
             ads.append(ad)
+        print()
 
         try:
             ads = post_parser(driver, ads)
+
+            if EXPERIMENTAL_FLAG:
+                ads = parser_egrp(driver, ads)
 
             return ads
 
