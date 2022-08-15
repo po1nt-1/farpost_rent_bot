@@ -58,6 +58,7 @@ def parser_egrp(driver, ads):
         params = b64encode(params.encode('utf8')).decode('utf8')
 
         url = f'https://egrp365.org/extra/?data={params}'
+        ad['egrp'] = f"[error]({ url })"
 
         driver.get(url)
         flag = 0
@@ -224,7 +225,7 @@ def parser(config):
                 "district": "", "type_": "", "area": "",
                 "phones": [], "floor": "", "second_price": "",
                 "date": "", "deposit": "", "photos": [],
-                "egrp": "error"
+                "egrp": ""
             }
 
             try:
