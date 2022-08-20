@@ -25,7 +25,7 @@ def send_message(ads, config):
         else:
             spc = '   '
 
-        address = f"{ ad['address'][0] }, { ad['address'][1] }"
+        address = f"{ ad['address'][1] }, { ad['address'][2] }"
 
         message += f"{ x1 }Создано:{ x1 }    { ad['date'] }\n"
         message += f"{ x1 }Район:{ x1 }        { ad['district'] }\n"
