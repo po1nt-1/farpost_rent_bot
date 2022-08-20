@@ -19,29 +19,47 @@ EXPERIMENTAL_FLAG = True
 
 
 def sleep_time():
-    return randint(3, 5)
+    return randint(2, 4)
 
 
 def url_builder(filters):
-    return f"https://www.farpost.ru/{ filters.get('city', 'detroit') }" + \
-        "/realty/rent_flats/?" + \
-        "".join([f'agentType[]={ e }&' for e in filters.get('agentType', [])]) + \
-        f"animalsAllowed={ filters.get('animalsAllowed', 0) }&" + \
-        f"areaTotal_max={ filters.get('areaTotal_max', 999) }&" + \
-        f"areaTotal_min={ filters.get('areaTotal_min', 0) }&" + \
-        "".join([f'district[]={ e }&' for e in filters.get('district', [])]) + \
-        "".join([f'flatType[]={ e }&' for e in filters.get('flatType', [])]) + \
-        f"floor_max={ filters.get('floor_max', 999) }&" + \
-        f"floor_min={ filters.get('floor_min', 1) }&" + \
-        f"price_max={ filters.get('price_max', 999999) }&" + \
-        f"price_min={ filters.get('price_min', 1) }&" + \
-        "".join([f'rentPeriod[]={e}&' for e in filters.get('rentPeriod', [])])
+    url = f"https://www.farpost.ru/{ filters.get('city', 'detroit') }" + \
+        "/realty/rent_flats/?"
+
+    if filters.get('agentType'):
+        url += "".join([f'agentType[]={ e }&' for e in filters.get('agentType')])
+    if filters.get('animalsAllowed'):
+        url += f"animalsAllowed={ filters.get('animalsAllowed') }&"
+    if filters.get('areaTotal_max'):
+        url += f"areaTotal_max={ filters.get('areaTotal_max') }&"
+    if filters.get('areaTotal_min'):
+        url += f"areaTotal_min={ filters.get('areaTotal_min') }&"
+    if filters.get('district'):
+        url += "".join([f'district[]={ e }&' for e in filters.get('district')])
+    if filters.get('flatType'):
+        url += "".join([f'flatType[]={ e }&' for e in filters.get('flatType')])
+    if filters.get('floor_max'):
+        url += f"floor_max={ filters.get('floor_max') }&"
+    if filters.get('floor_min'):
+        url += f"floor_min={ filters.get('floor_min') }&"
+    if filters.get('price_max'):
+        url += f"price_max={ filters.get('price_max') }&"
+    if filters.get('price_min'):
+        url += f"price_min={ filters.get('price_min') }&"
+    if filters.get('rentPeriod'):
+        url += "".join(
+            [f'rentPeriod[]={e}&' for e in filters.get('rentPeriod')])
+    if url.endswith('&'):
+        url = url[:-1]
+
+    return url
 
 
 def parser_egrp(driver, ads):
     for ad in ads:
-        street, house = ad['address'].replace('улица', '').split(maxsplit=1)
-        area = float(ad['area'].replace('\\', ''))
+        street = ad['address'][1]
+        house = ad['address'][2]
+        area = float(ad['area'])
         min_area, max_area = int(area) - 1, int(area) + 1
         floor = ad['floor']
 
@@ -74,7 +92,19 @@ def parser_egrp(driver, ads):
                 line = line.find_elements(By.TAG_NAME, 'td')[1].text
                 tmp.append(line)
 
-            ad['egrp'] = f"[{ len(tmp) } совпадений](https://httpbin.org/get?info={ ','.join(tmp) })"
+            word = 'совпадени'
+            n = len(tmp)
+            if not (n - 1) % 10:
+                word += 'е'
+            elif not (n - 2) % 10 or \
+                not (n - 3) % 10 or \
+                    not (n - 4) % 10:
+                word += 'я'
+            else:
+                word += 'й'
+
+            ad['egrp'] = ad['egrp'].replace(
+                'error', f'{ len(tmp) } { word }')
 
         except (exceptions.TimeoutException,
                 exceptions.NoSuchElementException):
@@ -86,7 +116,7 @@ def parser_egrp(driver, ads):
                 page = page.text
 
                 if 'Ничего не найдено' in page:
-                    ad['egrp'] = "нет совпадений"
+                    ad['egrp'] = ad['egrp'].replace('error', 'нет совпадений')
 
             except exceptions.TimeoutException:
                 pass
@@ -113,13 +143,28 @@ def post_parser(driver, ads):
             print(e)
 
         try:
-            second_price = driver.find_element(
-                By.CSS_SELECTOR, 'div.inplace > div:nth-child(2)'
-            ).text
-            second_price = second_price.replace(
-                ', иные коммунальные услуги', ' и иные')
-            second_price = second_price.lower()
-            ad.update({'second_price': second_price.strip()})
+            second_price = ''
+            try:
+                second_price = driver.find_element(
+                    By.CSS_SELECTOR, 'div.viewbull-summary-price__realty-bills'
+                ).text
+
+                second_price = second_price.lower()
+                second_price = second_price.replace(
+                    ', иные коммунальные услуги', ' и иные')
+
+                tmp = ''
+                if 'свет' in second_price:
+                    tmp += '💡'
+                if 'вода' in second_price:
+                    tmp += '💧'
+                if 'иные' in second_price:
+                    tmp += '🗿'
+                second_price = tmp
+
+                ad.update({'second_price': second_price.strip()})
+            except exceptions.NoSuchElementException:
+                pass
 
         except exceptions.NoSuchElementException as e:
             print(e)
@@ -136,7 +181,7 @@ def post_parser(driver, ads):
             ad.update({'deposit': deposit.strip()})
 
         except exceptions.NoSuchElementException as e:
-            print(e)
+            ad.update({'deposit': 'Нет данных'})
 
         try:
             date = driver.find_element(
@@ -206,11 +251,10 @@ def parser(config):
             fix_hairline=True,
         )
 
-        sleep(sleep_time() / 3)
         driver.get('https://yandex.ru/')
-        sleep(sleep_time() / 3)
+        sleep(sleep_time() / 5)
         driver.get('https://www.farpost.ru/help/rules')
-        sleep(sleep_time() / 3)
+        sleep(sleep_time() / 5)
 
         driver.get(url_builder(filters))
         sleep(sleep_time())
@@ -221,12 +265,22 @@ def parser(config):
         ads = []
         for raw_ad in raw_data:
             ad = {
-                "url": "", "address": "", "price": "",
+                "url": "", "address": [], "price": "",
                 "district": "", "type_": "", "area": "",
                 "phones": [], "floor": "", "second_price": "",
                 "date": "", "deposit": "", "photos": [],
                 "egrp": ""
             }
+
+            try:
+                hidden = raw_ad.find_element(
+                    By.CSS_SELECTOR,
+                    'span.private-image-marker__text'
+                ).text
+                if hidden == 'Скрытое объявление':
+                    continue
+            except exceptions.NoSuchElementException as e:
+                pass
 
             try:
                 url = raw_ad.find_element(
@@ -242,16 +296,38 @@ def parser(config):
 
             if ad_exists(ad['url']):
                 continue
-            print('.', end='')
 
             try:
-                address = raw_ad.find_element(
+                name = raw_ad.find_element(
                     By.CSS_SELECTOR,
                     'a[class$="bull-item__self-link '
                     'auto-shy"]').text
-                address = address.split(', ')
-                if len(address) == 2:
-                    ad.update({"address": address[1].strip()})
+
+                name = name.split(', ')
+                if len(name) >= 2:
+                    type_ = name[0].strip()
+                    type_ = type_.replace('-комнатная', '-комн.')
+                    address = name[1].split()
+
+                    if len(address) >= 3:
+                        if len(address) == 4:
+                            address = [address[0], ' '.join(
+                                address[1:3]), address[3]]
+                        elif len(address) == 5:
+                            tmp = []
+
+                            address[0] = address[0].replace('Ул', 'улица')
+                            tmp.append(address[0])
+                            tmp.append(address[1])
+                            if [True for word in ['кор.', 'стр.'] if word in address]:
+                                tmp.append(' '.join(address[2:5]))
+                            else:
+                                tmp[1] = tmp[1] + ' ' + ' '.join(address[2:4])
+                                tmp.append(address[4])
+                            address = [e.strip() for e in tmp]
+
+                ad.update({"type_": type_})
+                ad.update({"address": address})
 
             except exceptions.NoSuchElementException as e:
                 print(e)
@@ -276,24 +352,11 @@ def parser(config):
                 print(e)
 
             try:
-                type_ = raw_ad.find_element(
-                    By.CSS_SELECTOR,
-                    'a[class$="bull-item__self-link '
-                    'auto-shy"]').text.split(', ')
-                if len(type_) == 2:
-                    type_ = type_[0]
-                    type_ = type_.replace('-', '\\-')
-                    ad.update({"type_": type_.strip()})
-
-            except exceptions.NoSuchElementException as e:
-                print(e)
-
-            try:
                 area = raw_ad.find_element(
                     By.CSS_SELECTOR, 'div.bull-item__annotation-row').text
                 area = area[::-1].replace(' ,', ';', 2)[::-1]
                 area = area.split(';')[-1]
-                area = area.replace(',', '\.')
+                area = area.replace(',', '.')
                 area = area.replace(' кв. м.', '')
                 ad.update({'area': area.strip()})
 
@@ -301,13 +364,15 @@ def parser(config):
                 print(e)
 
             ads.append(ad)
-        print()
 
         try:
+            print('.', end='')
             ads = post_parser(driver, ads)
 
             if EXPERIMENTAL_FLAG:
+                print('.', end='')
                 ads = parser_egrp(driver, ads)
+                print('.')
 
             return ads
 
