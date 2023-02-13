@@ -1,5 +1,6 @@
 
 import urllib.parse
+from time import sleep
 
 from requests import post
 
@@ -58,17 +59,29 @@ def send_message(ads, config):
     for elem in dict(sorted(queue.items())).values():
         message, ad = elem
 
-        response = post(
-            url=f'https://api.telegram.org/bot{token}/sendMessage',
-            data={
-                'chat_id': f'{chat_id}',
-                'disable_web_page_preview': 'true',
-                'parse_mode': 'MarkdownV2',
-                'text': f'{message}'
-            }
-        ).json()
+        url = f'https://api.telegram.org/bot{token}/sendMessage'
+        data = {
+            'chat_id': f'{chat_id}',
+            'disable_web_page_preview': 'true',
+            'parse_mode': 'MarkdownV2',
+            'text': f'{message}'
+        }
 
-        if not response['ok']:
-            print(response)
-        else:
-            dump_on_disk(ad)
+        attemps = 2
+        while attemps > 0:
+            response = post(url=url, data=data).json()
+            if not response.get("ok", {}):
+                if attemps < 2:
+                    print("bot/send_message/response:", response)
+
+                if response.get('error_code') == 429:
+                    if response.get('parameters').get('retry_after'):
+                        sleep(1 + response.get('parameters').get('retry_after'))
+                else:
+                    sleep(30)
+            else:
+                dump_on_disk(ad)
+                break
+            attemps -= 1
+
+        sleep(0.5)

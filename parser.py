@@ -1,5 +1,5 @@
 from base64 import b64encode
-from random import randint
+from random import randint, choice
 from time import sleep
 from urllib.parse import quote
 
@@ -15,11 +15,9 @@ from selenium_stealth import stealth
 
 from disk import ad_exists, init
 
-EXPERIMENTAL_FLAG = True
-
 
 def sleep_time():
-    return randint(2, 4)
+    return randint(3, 5)
 
 
 def url_builder(filters):
@@ -125,9 +123,26 @@ def parser_egrp(driver, ads):
 
 
 def post_parser(driver, ads):
-    for ad in ads:
-        driver.get(ad['url'])
-        sleep(sleep_time())
+    for i, ad in enumerate(ads):
+        try:
+            driver.get(ad['url'])
+            sleep(sleep_time())
+
+            recaptha = driver.find_element(
+                By.CSS_SELECTOR, '#grecap-form').text
+
+            driver.delete_all_cookies()
+
+            print(
+                "parser/post_parser/recaptha:",
+                len(ads) - len(ads[:i]),
+                " ads skipped"
+            )
+
+            ads = ads[:i]
+            break
+        except exceptions.NoSuchElementException as e:
+            pass
 
         try:
             floor = driver.find_element(
@@ -140,6 +155,7 @@ def post_parser(driver, ads):
             ad.update({'floor': floor.strip()})
 
         except exceptions.NoSuchElementException as e:
+            e = "parser/post_parser/floor:" + e.__str__()
             print(e)
 
         try:
@@ -167,6 +183,7 @@ def post_parser(driver, ads):
                 pass
 
         except exceptions.NoSuchElementException as e:
+            e = "parser/post_parser/second_price:" + e.__str__()
             print(e)
 
         try:
@@ -189,15 +206,21 @@ def post_parser(driver, ads):
             ad.update({'date': date.strip()})
 
         except exceptions.NoSuchElementException as e:
+            e = "parser/post_parser/date:" + e.__str__()
             print(e)
 
         try:
             photos = driver.find_element(
-                By.CSS_SELECTOR, '.bulletinImages').find_elements(By.TAG_NAME, 'img')
-            photos = [p.get_attribute('src') for p in photos]
+                By.CSS_SELECTOR, '#bulletin > div > div.fieldset > ' +
+                'div > div.image-gallery__small-images-grid'
+            ).find_elements(By.TAG_NAME, 'img')
+            photos = [p.get_attribute('src').replace(
+                '_bulletin', '_default'
+            ) for p in photos]
             ad.update({'photos': photos})
 
         except exceptions.NoSuchElementException as e:
+            e = "parser/post_parser/photos:" + e.__str__()
             print(e)
 
         try:
@@ -222,6 +245,7 @@ def post_parser(driver, ads):
             ad.update({'phones': phones})
 
         except exceptions.NoSuchElementException as e:
+            e = "parser/post_parser/phones:" + e.__str__()
             print(e)
 
     return ads
@@ -231,7 +255,7 @@ def parser(config):
     filters = config['filters']
 
     opts = Options()
-    opts.headless = True
+    opts.add_argument('--headless=new')
     opts.add_argument('user-data-dir=./driver_profile/')
     opts.add_argument("start-maximized")
     opts.add_argument('--disable-blink-features=AutomationControlled')
@@ -240,6 +264,7 @@ def parser(config):
 
     service = Service('./chromedriver', log_path='/dev/null')
 
+    ads = []
     with Chrome(service=service, options=opts) as driver:
         stealth(
             driver,
@@ -251,7 +276,8 @@ def parser(config):
             fix_hairline=True,
         )
 
-        driver.get('https://yandex.ru/')
+        random_domains = ['google.com', 'yandex.ru', 'mail.ru']
+        driver.get(f'https://{ choice(random_domains) }/')
         sleep(sleep_time() / 5)
         driver.get('https://www.farpost.ru/help/rules')
         sleep(sleep_time() / 5)
@@ -262,7 +288,6 @@ def parser(config):
         raw_data = driver.find_element(
             By.CLASS_NAME, 'native').find_elements(By.TAG_NAME, 'td')[1:]
 
-        ads = []
         for raw_ad in raw_data:
             ad = {
                 "url": "", "address": [], "price": "",
@@ -292,6 +317,7 @@ def parser(config):
                 ad.update({"url": url.strip()})
 
             except exceptions.NoSuchElementException as e:
+                e = "parser/parser/url:" + e.__str__()
                 print(e)
 
             if ad_exists(ad['url']):
@@ -330,6 +356,7 @@ def parser(config):
                 ad.update({"address": address})
 
             except exceptions.NoSuchElementException as e:
+                e = "parser/parser/name:" + e.__str__()
                 print(e)
 
             try:
@@ -339,6 +366,7 @@ def parser(config):
                 ad.update({"price": price.strip()})
 
             except exceptions.NoSuchElementException as e:
+                e = "parser/parser/price:" + e.__str__()
                 print(e)
 
             try:
@@ -349,6 +377,7 @@ def parser(config):
                 ad.update({"district": district.strip()})
 
             except exceptions.NoSuchElementException as e:
+                e = "parser/parser/district:" + e.__str__()
                 print(e)
 
             try:
@@ -361,6 +390,7 @@ def parser(config):
                 ad.update({'area': area.strip()})
 
             except exceptions.NoSuchElementException as e:
+                e = "parser/parser/area:" + e.__str__()
                 print(e)
 
             ads.append(ad)
@@ -369,12 +399,14 @@ def parser(config):
             print('.', end='')
             ads = post_parser(driver, ads)
 
-            if EXPERIMENTAL_FLAG:
-                print('.', end='')
-                ads = parser_egrp(driver, ads)
-                print('.')
+            driver.get('about:blank')
 
-            return ads
+            print('.', end='')
+            ads = parser_egrp(driver, ads)
 
+            print('.')
         except exceptions.WebDriverException as e:
+            e = "parser/parser_egrp:" + e.__str__()
             raise exceptions.WebDriverException(e)
+
+    return ads
