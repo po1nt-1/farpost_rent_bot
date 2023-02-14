@@ -15,8 +15,10 @@ def main():
 
             ads = parser(config)
             send_message(ads, config)
+            print('.')
 
         except Exception as e:
+            e = "main/main:" + e.__str__()
             print(e)
         finally:
             sleep(config['scrape_interval'])

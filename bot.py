@@ -11,6 +11,8 @@ def send_message(ads, config):
     token = config['telegram']['token']
     chat_id = config['telegram']['chat_id']
 
+    ok = False
+
     queue = {}
     for ad in ads:
         message = ''
@@ -81,7 +83,11 @@ def send_message(ads, config):
                     sleep(30)
             else:
                 dump_on_disk(ad)
+                ok = True
                 break
             attemps -= 1
 
         sleep(0.5)
+
+    if ok:
+        print('.', end='')

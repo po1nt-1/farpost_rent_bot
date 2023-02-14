@@ -1,5 +1,5 @@
 from base64 import b64encode
-from random import randint, choice
+from random import choice, randint
 from time import sleep
 from urllib.parse import quote
 
@@ -54,6 +54,7 @@ def url_builder(filters):
 
 
 def parser_egrp(driver, ads):
+    ok = False
     for ad in ads:
         street = ad['address'][1]
         house = ad['address'][2]
@@ -119,10 +120,16 @@ def parser_egrp(driver, ads):
             except exceptions.TimeoutException:
                 pass
 
+        ok = True
+
+    if ok:
+        print('.', end='')
+
     return ads
 
 
 def post_parser(driver, ads):
+    ok = False
     for i, ad in enumerate(ads):
         try:
             driver.get(ad['url'])
@@ -248,11 +255,18 @@ def post_parser(driver, ads):
             e = "parser/post_parser/phones:" + e.__str__()
             print(e)
 
+        ok = True
+
+    if ok:
+        print('.', end='')
+
     return ads
 
 
 def parser(config):
     filters = config['filters']
+
+    ok = False
 
     opts = Options()
     opts.add_argument('--headless=new')
@@ -296,6 +310,21 @@ def parser(config):
                 "date": "", "deposit": "", "photos": [],
                 "egrp": ""
             }
+
+            try:
+                driver.find_element(
+                    By.CSS_SELECTOR, '#grecap-form')
+
+                print(
+                    "parser/parser/recaptha:",
+                    len(raw_data) - len(ads),
+                    " ads skipped"
+                )
+
+                driver.delete_all_cookies()
+                break
+            except exceptions.NoSuchElementException as e:
+                pass
 
             try:
                 hidden = raw_ad.find_element(
@@ -395,16 +424,15 @@ def parser(config):
 
             ads.append(ad)
 
+        print('.', end='')
+
         try:
-            print('.', end='')
             ads = post_parser(driver, ads)
 
             driver.get('about:blank')
 
-            print('.', end='')
             ads = parser_egrp(driver, ads)
 
-            print('.')
         except exceptions.WebDriverException as e:
             e = "parser/parser_egrp:" + e.__str__()
             raise exceptions.WebDriverException(e)
