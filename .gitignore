@@ -132,3 +132,4 @@ dmypy.json
 driver_profile/
 chromedriver
 config.yaml
+.idea/
