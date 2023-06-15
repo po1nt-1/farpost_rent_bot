@@ -1,10 +1,15 @@
-
 from yaml import safe_load
+from logging import getLogger
+
+
+log = getLogger('main.bot')
 
 
 def init():
     with open('config.yaml', 'r') as f:
-        return safe_load(f)
+        cfg = safe_load(f)
+        log.debug('config loaded')
+        return cfg
 
 
 def ad_exists(ad_url):
@@ -12,8 +17,6 @@ def ad_exists(ad_url):
         pass
 
     with open('ads.log', 'r') as f:
-        flag = False
-
         for line in f:
             ad = line.split("'")[1]
 
@@ -26,3 +29,5 @@ def ad_exists(ad_url):
 def dump_on_disk(ad):
     with open('ads.log', 'a') as f:
         f.write(f'{ list(ad.values()) }\n')
+
+    log.debug(f'{ len(list(ad.values())) } ads dumped on disk')

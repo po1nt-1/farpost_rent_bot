@@ -5,6 +5,10 @@ from time import sleep
 from requests import post
 
 from disk import dump_on_disk
+from logging import getLogger
+
+
+log = getLogger('main.bot')
 
 
 def send_message(ads, config):
@@ -74,7 +78,7 @@ def send_message(ads, config):
             response = post(url=url, data=data).json()
             if not response.get("ok", {}):
                 if attemps < 2:
-                    print("bot/send_message/response:", response)
+                    log.error(f'response: { response }')
 
                 if response.get('error_code') == 429:
                     if response.get('parameters').get('retry_after'):
@@ -90,4 +94,4 @@ def send_message(ads, config):
         sleep(0.5)
 
     if ok:
-        print('.', end='')
+        log.debug('send_message done')

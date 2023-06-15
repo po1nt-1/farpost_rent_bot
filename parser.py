@@ -14,6 +14,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium_stealth import stealth
 
 from disk import ad_exists, init
+from logging import getLogger
+
+log = getLogger('main.parser')
 
 
 def sleep_time():
@@ -123,7 +126,7 @@ def parser_egrp(driver, ads):
         ok = True
 
     if ok:
-        print('.', end='')
+        log.debug('parser_egrp done')
 
     return ads
 
@@ -135,18 +138,14 @@ def post_parser(driver, ads):
             driver.get(ad['url'])
             sleep(sleep_time())
 
-            recaptha = driver.find_element(
+            driver.find_element(
                 By.CSS_SELECTOR, '#grecap-form').text
+            log.info('recaptha happened')
 
             driver.delete_all_cookies()
 
-            print(
-                "parser/post_parser/recaptha:",
-                len(ads) - len(ads[:i]),
-                " ads skipped"
-            )
-
             ads = ads[:i]
+            log.info(f'{ len(ads) - len(ads[:i]) } ads skipped')
             break
         except exceptions.NoSuchElementException as e:
             pass
@@ -161,37 +160,32 @@ def post_parser(driver, ads):
             floor = floor.split(sep='-', maxsplit=1,)[0]
             ad.update({'floor': floor.strip()})
 
-        except exceptions.NoSuchElementException as e:
-            e = "parser/post_parser/floor:" + e.__str__()
-            print(e)
+        except exceptions.NoSuchElementException:
+            log.exception('floor not found')
 
         try:
             second_price = ''
-            try:
-                second_price = driver.find_element(
-                    By.CSS_SELECTOR, 'div.viewbull-summary-price__realty-bills'
-                ).text
+            second_price = driver.find_element(
+                By.CSS_SELECTOR, 'div.viewbull-summary-price__realty-bills'
+            ).text
 
-                second_price = second_price.lower()
-                second_price = second_price.replace(
-                    ', иные коммунальные услуги', ' и иные')
+            second_price = second_price.lower()
+            second_price = second_price.replace(
+                ', иные коммунальные услуги', ' и иные')
 
-                tmp = ''
-                if 'свет' in second_price:
-                    tmp += '💡'
-                if 'вода' in second_price:
-                    tmp += '💧'
-                if 'иные' in second_price:
-                    tmp += '🗿'
-                second_price = tmp
+            tmp = ''
+            if 'свет' in second_price:
+                tmp += '💡'
+            if 'вода' in second_price:
+                tmp += '💧'
+            if 'иные' in second_price:
+                tmp += '🗿'
+            second_price = tmp
 
-                ad.update({'second_price': second_price.strip()})
-            except exceptions.NoSuchElementException:
-                pass
+            ad.update({'second_price': second_price.strip()})
 
-        except exceptions.NoSuchElementException as e:
-            e = "parser/post_parser/second_price:" + e.__str__()
-            print(e)
+        except exceptions.NoSuchElementException:
+            log.exception('second_price not found')
 
         try:
             deposit = driver.find_element(
@@ -204,7 +198,7 @@ def post_parser(driver, ads):
             deposit = "".join(deposit.split(maxsplit=1)[1].split()[:-1])
             ad.update({'deposit': deposit.strip()})
 
-        except exceptions.NoSuchElementException as e:
+        except exceptions.NoSuchElementException:
             ad.update({'deposit': 'Нет данных'})
 
         try:
@@ -212,9 +206,8 @@ def post_parser(driver, ads):
                 By.CSS_SELECTOR, '.viewbull-actual-date').text
             ad.update({'date': date.strip()})
 
-        except exceptions.NoSuchElementException as e:
-            e = "parser/post_parser/date:" + e.__str__()
-            print(e)
+        except exceptions.NoSuchElementException:
+            log.exception('date not found')
 
         try:
             photos = driver.find_element(
@@ -226,9 +219,8 @@ def post_parser(driver, ads):
             ) for p in photos]
             ad.update({'photos': photos})
 
-        except exceptions.NoSuchElementException as e:
-            e = "parser/post_parser/photos:" + e.__str__()
-            print(e)
+        except exceptions.NoSuchElementException:
+            log.exception('photos not found')
 
         try:
             driver.find_element(
@@ -251,14 +243,13 @@ def post_parser(driver, ads):
 
             ad.update({'phones': phones})
 
-        except exceptions.NoSuchElementException as e:
-            e = "parser/post_parser/phones:" + e.__str__()
-            print(e)
+        except exceptions.NoSuchElementException:
+            log.exception('phones not found')
 
         ok = True
 
     if ok:
-        print('.', end='')
+        log.debug('post_parser done')
 
     return ads
 
@@ -269,12 +260,12 @@ def parser(config):
     ok = False
 
     opts = Options()
-    opts.add_argument('--headless=new')
+    # opts.add_argument('--headless=new')
     opts.add_argument('user-data-dir=./driver_profile/')
     opts.add_argument("start-maximized")
-    opts.add_argument('--disable-blink-features=AutomationControlled')
-    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-    opts.add_experimental_option('useAutomationExtension', False)
+    # opts.add_argument('--disable-blink-features=AutomationControlled')
+    # opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+    # opts.add_experimental_option('useAutomationExtension', False)
 
     service = Service('./chromedriver', log_path='/dev/null')
 
@@ -296,7 +287,9 @@ def parser(config):
         driver.get('https://www.farpost.ru/help/rules')
         sleep(sleep_time() / 5)
 
-        driver.get(url_builder(filters))
+        parser_url = url_builder(filters)
+        log.debug(f'parser_url: { parser_url }')
+        driver.get(parser_url)
         sleep(sleep_time())
 
         raw_data = driver.find_element(
@@ -314,14 +307,10 @@ def parser(config):
             try:
                 driver.find_element(
                     By.CSS_SELECTOR, '#grecap-form')
-
-                print(
-                    "parser/parser/recaptha:",
-                    len(raw_data) - len(ads),
-                    " ads skipped"
-                )
+                log.info('recaptcha happened')
 
                 driver.delete_all_cookies()
+                log.info(f'{ len(raw_data) - len(ads) } ads skipped')
                 break
             except exceptions.NoSuchElementException as e:
                 pass
@@ -345,9 +334,8 @@ def parser(config):
 
                 ad.update({"url": url.strip()})
 
-            except exceptions.NoSuchElementException as e:
-                e = "parser/parser/url:" + e.__str__()
-                print(e)
+            except exceptions.NoSuchElementException:
+                log.exception('url not found')
 
             if ad_exists(ad['url']):
                 continue
@@ -384,9 +372,8 @@ def parser(config):
                 ad.update({"type_": type_})
                 ad.update({"address": address})
 
-            except exceptions.NoSuchElementException as e:
-                e = "parser/parser/name:" + e.__str__()
-                print(e)
+            except exceptions.NoSuchElementException:
+                log.exception('name not found')
 
             try:
                 price = raw_ad.find_element(
@@ -394,9 +381,8 @@ def parser(config):
                 price = price.replace(' ', '').replace('₽', '')
                 ad.update({"price": price.strip()})
 
-            except exceptions.NoSuchElementException as e:
-                e = "parser/parser/price:" + e.__str__()
-                print(e)
+            except exceptions.NoSuchElementException:
+                log.exception('price not found')
 
             try:
                 district = raw_ad.find_element(
@@ -405,9 +391,8 @@ def parser(config):
                 district = district.split(';')[0]
                 ad.update({"district": district.strip()})
 
-            except exceptions.NoSuchElementException as e:
-                e = "parser/parser/district:" + e.__str__()
-                print(e)
+            except exceptions.NoSuchElementException:
+                log.exception('district not found')
 
             try:
                 area = raw_ad.find_element(
@@ -418,13 +403,12 @@ def parser(config):
                 area = area.replace(' кв. м.', '')
                 ad.update({'area': area.strip()})
 
-            except exceptions.NoSuchElementException as e:
-                e = "parser/parser/area:" + e.__str__()
-                print(e)
+            except exceptions.NoSuchElementException:
+                log.exception('area not found')
 
             ads.append(ad)
 
-        print('.', end='')
+        log.debug('parser done')
 
         try:
             ads = post_parser(driver, ads)
@@ -434,7 +418,6 @@ def parser(config):
             ads = parser_egrp(driver, ads)
 
         except exceptions.WebDriverException as e:
-            e = "parser/parser_egrp:" + e.__str__()
-            raise exceptions.WebDriverException(e)
+            log.exception()
 
     return ads
